@@ -45,5 +45,8 @@ desktop.ini
 switch-env.ps1
 verify_barcode.js
 
+# ─── Archivos internos del proyecto (no relevantes para colaboradores) ──
+CLAUDE.md
+
 # ─── Otros archivos temporales ───────────────────────────────────
 *.local

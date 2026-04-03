@@ -13,6 +13,7 @@ import { Sidebar } from './components/layout/Sidebar';
 import { CollectionView } from './components/views/CollectionView';
 import { LoanView } from './components/views/LoanView';
 import { UserManagement } from './components/views/UserManagement';
+import { ChatView } from './components/views/ChatView';
 import { LoginView } from './components/views/LoginView';
 
 // Modals
@@ -220,6 +221,12 @@ export default function AdminDashboard() {
                 <p className="text-xs text-slate-500 mt-0.5">{users.length} usuarios registrados</p>
               </>
             )}
+            {view === 'chat' && (
+              <>
+                <h1 className="text-2xl font-black text-white tracking-tight">Mensajes</h1>
+                <p className="text-xs text-slate-500 mt-0.5">Comunicación en tiempo real con usuarios</p>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -300,6 +307,9 @@ export default function AdminDashboard() {
               onUserModified={handleUserModified}
             />
           )}
+          {view === 'chat' && (
+            <ChatView />
+          )}
         </div>
       </main>
 
@@ -320,6 +330,4 @@ export default function AdminDashboard() {
           onSuccess={() => { fetchLoans(); fetchInventory(); }}
         />
       )}
-    </div>
-  );
-}
+   
