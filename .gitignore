@@ -48,5 +48,8 @@ verify_barcode.js
 # ─── Archivos internos del proyecto (no relevantes para colaboradores) ──
 CLAUDE.md
 
+# ─── Supabase config local (contiene credenciales de servicios externos) ─
+supabase/config.toml
+
 # ─── Otros archivos temporales ───────────────────────────────────
 *.local
