@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Syne:wght@700;800&display=swap');
+
+:root {
+  --gv-bg: #040a14;
+  --gv-surface: #080f1e;
+  --gv-card: #0c1628;
+  --gv-border: rgba(255,255,255,0.06);
+  --gv-emerald: #10b981;
+  --gv-emerald-dim: rgba(16,185,129,0.12);
+  --gv-glow: 0 0 40px rgba(16,185,129,0.15);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--gv-bg);
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Scrollbar Premium */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(16,185,129,0.25); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,0.5); }
+
+/* Game card shine effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.2); }
+  50% { box-shadow: 0 0 40px rgba(16,185,129,0.4); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scanline {
+  0% { top: -100%; }
+  100% { top: 200%; }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.5s ease forwards;
+}
+
+.card-hover:hover {
+  transform: translateY(-8px) scale(1.01);
+}
+
+.game-card:hover .game-card-overlay {
+  opacity: 1;
+}
+
+.game-card:hover img {
+  transform: scale(1.08);
+}
+
+/* Sidebar gradient line */
+.sidebar-gradient {
+  background: linear-gradient(180deg, transparent, rgba(16,185,129,0.5), transparent);
+}
+
+/* Stats glow on hover */
+.stat-card:hover {
+  box-shadow: 0 0 30px rgba(16,185,129,0.1);
+  border-color: rgba(16,185,129,0.25) !important;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  backdrop-filter: blur(12px);
+  background: rgba(4,10,20,0.85);
+}
+
+/* Noise texture overlay for premium feel */
+.noise::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}

@@ -1,0 +1,6 @@
+packages:
+  - "apps/*" # Aquí irán la Web y la App móvil
+  - "packages/*" # Aquí irán los tipos compartidos, UI y configuración [3, 1, 2]
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
