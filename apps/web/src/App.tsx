@@ -330,4 +330,6 @@ export default function AdminDashboard() {
           onSuccess={() => { fetchLoans(); fetchInventory(); }}
         />
       )}
-   
+    </div>
+  );
+}

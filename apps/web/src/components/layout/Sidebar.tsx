@@ -165,3 +165,6 @@ export function Sidebar({
           </button>
         </div>
       </div>
+    </aside>
+  );
+}

@@ -1,9 +1,11 @@
 /* ─── Shared Helpers ──────────────────────────────────────────────── */
 
-export const img = (url?: string, size = 't_720p') =>
-  url
-    ? `https:${url.replace(/t_\w+/, size)}`
-    : 'https://placehold.co/300x400/0c1628/10b981?text=No+Cover';
+export const img = (url?: string | null, size = 't_720p') => {
+  if (!url) return 'https://placehold.co/300x400/0c1628/10b981?text=No+Cover';
+  // Normalise: protocol-relative (//) → https:// then swap size token
+  const full = url.startsWith('//') ? `https:${url}` : url;
+  return full.replace(/t_\w+/, size);
+};
 
 export const timeAgo = (date: string) => {
   const diff = Date.now() - new Date(date).getTime();
