@@ -31,11 +31,11 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { barcode } = body;
-    console.log("Processing barcode:", barcode);
+    const { barcode, igdbId, searchQuery } = body;
+    console.log("Request body:", { barcode, igdbId, searchQuery });
 
-    if (!barcode || typeof barcode !== 'string') {
-      throw new Error("No barcode provided in request body");
+    if (!barcode && !igdbId && !searchQuery) {
+      throw new Error("Se requiere barcode, igdbId o searchQuery");
     }
 
     const clientID = Deno.env.get('TWITCH_CLIENT_ID') || 'xpjm7wkanku3gw6abbszfx2yss49kh'
@@ -61,12 +61,67 @@ serve(async (req: Request) => {
     const { access_token } = await tokenRes.json();
     const igdbHeaders = { 'Client-ID': clientID, 'Authorization': `Bearer ${access_token}` };
 
-    // 2. Buscar por código de barras directo en IGDB
+    // Helper: fetch game details by IGDB numeric ID
+    const fetchGameById = async (gameId: number | string) => {
+      const res = await fetch('https://api.igdb.com/v4/games', {
+        method: 'POST',
+        headers: igdbHeaders,
+        body: `fields name, summary, cover.url, first_release_date; where id = ${gameId};`
+      });
+      if (!res.ok) return null;
+      const games = await res.json();
+      return Array.isArray(games) && games.length > 0 ? fixCoverUrl(games[0]) : null;
+    };
+
+    // ── MODE A: Direct IGDB ID lookup ─────────────────────────────────────
+    if (igdbId) {
+      console.log(`Direct IGDB ID lookup: ${igdbId}`);
+      const game = await fetchGameById(igdbId);
+      if (game) {
+        console.log(`Found by IGDB ID: "${game.name}"`);
+        return new Response(JSON.stringify(game), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        });
+      }
+      return new Response(
+        JSON.stringify({ error: `No se encontró ningún juego con IGDB ID ${igdbId}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      );
+    }
+
+    // ── MODE B: Text search on IGDB ───────────────────────────────────────
+    if (searchQuery) {
+      console.log(`Text search on IGDB: "${searchQuery}"`);
+      const res = await fetch('https://api.igdb.com/v4/games', {
+        method: 'POST',
+        headers: igdbHeaders,
+        body: `search "${searchQuery}"; fields name, summary, cover.url, first_release_date; limit 10;`
+      });
+      if (res.ok) {
+        const results = await res.json();
+        if (Array.isArray(results) && results.length > 0) {
+          const game = fixCoverUrl(results[0]);
+          console.log(`Text search match: "${game.name}"`);
+          return new Response(JSON.stringify(game), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200
+          });
+        }
+      }
+      return new Response(
+        JSON.stringify({ error: `No se encontró "${searchQuery}" en IGDB` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      );
+    }
+
+    // ── MODE C: Barcode scan ──────────────────────────────────────────────
     // Intentamos variantes: original, UPC-A (12 dígitos), EAN-13 (13 dígitos con 0 delante)
     const barcodesToTry = [...new Set([
       barcode,
       barcode.padStart(12, '0'),
       barcode.padStart(13, '0'),
+      barcode.replace(/^0+/, ''), // strip leading zeros
     ])];
 
     let externalData: Record<string, unknown>[] = [];
@@ -91,21 +146,10 @@ serve(async (req: Request) => {
 
     // 3. Si encontramos match directo, obtenemos detalles
     if (externalData.length > 0) {
-      const gameId = externalData[0].game;
-      const gameRes = await fetch('https://api.igdb.com/v4/games', {
-        method: 'POST',
-        headers: igdbHeaders,
-        body: `fields name, summary, cover.url, first_release_date; where id = ${gameId};`
-      });
-
-      if (!gameRes.ok) {
-        throw new Error(`Game details fetch failed: ${gameRes.statusText}`);
-      }
-
-      const games = await gameRes.json();
-      if (games && games.length > 0) {
-        const game = fixCoverUrl(games[0]);
-        console.log(`Direct match: "${game.name}"`);
+      const gameId = externalData[0].game as string | number;
+      const game = await fetchGameById(gameId);
+      if (game) {
+        console.log(`Direct barcode match: "${game.name}"`);
         return new Response(JSON.stringify(game), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200
@@ -125,7 +169,7 @@ serve(async (req: Request) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
       );
     }
-
+ 
     const upcData = await upcRes.json();
 
     if (upcData.code !== 'OK' || !upcData.items || upcData.items.length === 0) {
@@ -260,8 +304,9 @@ serve(async (req: Request) => {
 
       console.log(`Best match: "${best.game.name}" (score: ${best.score.toFixed(2)})`);
 
-      // Umbral mínimo: al menos 40% de las palabras deben coincidir
-      if (best.score < 0.4 && scored.length > 1) {
+      // Umbral mínimo: al menos 25% de las palabras deben coincidir
+      // (era 40% – demasiado estricto para títulos cortos como "Wii Sports Resort")
+      if (best.score < 0.25 && scored.length > 1) {
         console.log(`Low confidence (${best.score.toFixed(2)}), trying next UPC candidate...`);
         continue;
       }
