@@ -14,7 +14,7 @@ schema_paths = ["public"]
 [auth]
 enabled = true
 # site_url apunta al dashboard web
-site_url = "http://localhost:5173"
+site_url = "http://192.168.1.49:5173"
 # Todas las URLs de redireccion aceptadas: permitimos cualquier IP local mediante comodines
 additional_redirect_urls = [
   "http://**",
@@ -25,11 +25,16 @@ additional_redirect_urls = [
 
 [auth.external.twitch]
 enabled = true
-client_id = "xpjm7wkanku3gw6abbszfx2yss49kh"
+client_id = "env(TWITCH_CLIENT_ID)"
 secret = "env(TWITCH_CLIENT_SECRET)"
-redirect_uri = "https://snugging-discontentedly-daxton.ngrok-free.dev/auth/v1/callback"
+redirect_uri = "http://192.168.1.49:54321/auth/v1/callback"
 
 # CONFIGURACION DE FUNCIONES
 [functions.get-game-details]
 verify_jwt = false
 import_map = "./functions/import_map.json"
+
+[functions.send-notification]
+verify_jwt = true
+import_map = "./functions/import_map.json"
+

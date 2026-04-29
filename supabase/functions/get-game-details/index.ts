@@ -38,11 +38,11 @@ serve(async (req: Request) => {
       throw new Error("Se requiere barcode, igdbId o searchQuery");
     }
 
-    const clientID = Deno.env.get('TWITCH_CLIENT_ID') || 'xpjm7wkanku3gw6abbszfx2yss49kh'
-    const clientSecret = Deno.env.get('TWITCH_CLIENT_SECRET') || '4xlk6u9pssvmvfzjibpgqiu8mcosof'
+    const clientID = Deno.env.get('TWITCH_CLIENT_ID')
+    const clientSecret = Deno.env.get('TWITCH_CLIENT_SECRET')
 
     if (!clientID || !clientSecret) {
-      throw new Error("Server configuration error: Missing credentials");
+      throw new Error("Server configuration error: Missing Twitch credentials");
     }
 
     // 1. Obtener Token de Twitch
