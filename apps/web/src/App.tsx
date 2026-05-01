@@ -2,27 +2,22 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from './lib/supabase';
 import './App.css';
 
-// Types
 import type { Profile, InventoryItem, Loan, View } from './types';
 import type { Session } from '@supabase/supabase-js';
 
-// Layout
 import { Sidebar } from './components/layout/Sidebar';
 
-// Views
 import { CollectionView } from './components/views/CollectionView';
 import { LoanView } from './components/views/LoanView';
 import { UserManagement } from './components/views/UserManagement';
+import { ChatView } from './components/views/ChatView';
 import { LoginView } from './components/views/LoginView';
 
-// Modals
 import { GameDetailModal } from './components/modals/GameDetailModal';
 import { LoanModal } from './components/modals/LoanModal';
 
-// UI
 import { Icon } from './components/ui/Icon';
 
-/* ─── Main Dashboard ──────────────────────────────────────────────── */
 export default function AdminDashboard() {
   const [items, setItems]             = useState<InventoryItem[]>([]);
   const [users, setUsers]             = useState<Profile[]>([]);
@@ -39,7 +34,6 @@ export default function AdminDashboard() {
   const [gridView, setGridView]       = useState(true);
   const [recentlyModified, setRecentlyModified] = useState<Profile[]>([]);
 
-  /* ── Data fetching ── */
   const fetchUsers = useCallback(async () => {
     const { data } = await supabase
       .from('profiles')
@@ -49,7 +43,7 @@ export default function AdminDashboard() {
       const profiles = data as Profile[];
       setUsers(profiles);
 
-      // Recently modified: top 5 by updated_at
+      // top 5 most recently updated
       const sorted = [...profiles]
         .filter(u => u.updated_at)
         .sort((a, b) => new Date(b.updated_at!).getTime() - new Date(a.updated_at!).getTime())
@@ -81,7 +75,6 @@ export default function AdminDashboard() {
     setLoansLoading(false);
   }, []);
 
-  /* ── Init + realtime ── */
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -126,7 +119,6 @@ export default function AdminDashboard() {
     return null;
   }, [session, users]);
 
-  /* ── Actions ── */
   const handleStatusChange = async (itemId: string, newStatus: string) => {
     await supabase.from('inventory_items').update({ status: newStatus }).eq('id', itemId);
     setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: newStatus as InventoryItem['status'] } : i));
@@ -149,7 +141,6 @@ export default function AdminDashboard() {
     fetchInventory();
   }, [fetchInventory]);
 
-  /* ── Filtering ── */
   const filteredItems = useMemo(() => {
     let result = items;
     if (statusFilter !== 'all') result = result.filter(i => i.status === statusFilter);
@@ -171,7 +162,6 @@ export default function AdminDashboard() {
     users:     users.length,
   }), [items, users]);
 
-  /* ── Render ── */
   if (!session) {
     return <LoginView />;
   }
@@ -179,7 +169,6 @@ export default function AdminDashboard() {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--gv-bg)', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
-      {/* ── SIDEBAR ── */}
       <Sidebar
         view={view}
         setView={setView}
@@ -192,10 +181,8 @@ export default function AdminDashboard() {
         stats={stats}
       />
 
-      {/* ── MAIN ── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Top Bar */}
         <header className="shrink-0 flex items-center justify-between px-8 py-4 border-b border-white/5" style={{ background: 'rgba(8,15,30,0.8)', backdropFilter: 'blur(20px)' }}>
           <div>
             {view === 'collection' && (
@@ -220,12 +207,17 @@ export default function AdminDashboard() {
                 <p className="text-xs text-slate-500 mt-0.5">{users.length} usuarios registrados</p>
               </>
             )}
+            {view === 'chat' && (
+              <>
+                <h1 className="text-2xl font-black text-white tracking-tight">Mensajes</h1>
+                <p className="text-xs text-slate-500 mt-0.5">Comunicación en tiempo real con usuarios</p>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
             {view === 'collection' && (
               <>
-                {/* Search */}
                 <div className="relative">
                   <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
@@ -237,7 +229,6 @@ export default function AdminDashboard() {
                   />
                 </div>
 
-                {/* Status filter */}
                 <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
                   {['all', 'available', 'loaned', 'maintenance'].map(s => (
                     <button
@@ -252,7 +243,6 @@ export default function AdminDashboard() {
                   ))}
                 </div>
 
-                {/* Grid/List toggle */}
                 <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
                   <button onClick={() => setGridView(true)} className={`p-1.5 rounded-lg transition-all ${gridView ? 'bg-white/10 text-white' : 'text-slate-600 hover:text-slate-300'}`}>
                     <Icon name="grid" className="w-4 h-4" />
@@ -264,7 +254,6 @@ export default function AdminDashboard() {
               </>
             )}
 
-            {/* Logout Button (Web) */}
             <button
               onClick={() => supabase.auth.signOut()}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all font-bold text-xs"
@@ -300,10 +289,12 @@ export default function AdminDashboard() {
               onUserModified={handleUserModified}
             />
           )}
+          {view === 'chat' && (
+            <ChatView />
+          )}
         </div>
       </main>
 
-      {/* ── MODALS ── */}
       {selectedItem && (
         <GameDetailModal
           item={selectedItem}

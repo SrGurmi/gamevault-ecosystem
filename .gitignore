@@ -45,5 +45,27 @@ desktop.ini
 switch-env.ps1
 verify_barcode.js
 
+# ─── Archivos internos del proyecto (no relevantes para colaboradores) ──
+CLAUDE.md
+
+# ─── Supabase config local (contiene credenciales de servicios externos) ─
+supabase/config.toml
+
 # ─── Otros archivos temporales ───────────────────────────────────
 *.local
+
+# ─── Archivos temporales de Office ───────────────────────────────
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# ─── Datos exportados locales ────────────────────────────────────
+db_games.json
+db_games.txt
+test.js
+
+# ─── Supabase Studio snippets locales ────────────────────────────
+supabase/snippets/
+
+# ─── Supabase config backup ──────────────────────────────────────
+supabase/config.toml.bak

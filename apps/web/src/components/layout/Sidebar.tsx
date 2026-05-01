@@ -18,6 +18,7 @@ interface SidebarProps {
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: 'collection', label: 'Colección', icon: 'grid' },
   { id: 'loans',      label: 'Préstamos',  icon: 'book' },
+  { id: 'chat',       label: 'Mensajes',   icon: 'message-circle' },
   { id: 'users',      label: 'Usuarios',   icon: 'users' },
 ];
 

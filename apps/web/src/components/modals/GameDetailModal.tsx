@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { img, STATUS_COLORS } from '../../lib/helpers';
 import { Icon } from '../ui/Icon';
 import type { InventoryItem } from '../../types';
+import { supabase } from '../../lib/supabase';
 
 interface GameDetailModalProps {
   item: InventoryItem;
@@ -13,6 +14,56 @@ interface GameDetailModalProps {
 export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameDetailModalProps) {
   const [status, setStatus] = useState(item.status);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncData = async () => {
+    const rawInput = window.prompt(
+      `Introduce el nombre del juego correcto o el ID numérico de IGDB para reparar "${item.games?.title}":`
+    );
+    if (!rawInput) return;
+
+    setSyncing(true);
+    try {
+      const q = rawInput.trim();
+      const isId = /^\d+$/.test(q);
+      const reqBody = isId ? { igdbId: Number(q) } : { searchQuery: q };
+
+      const { data: gameData, error: funcError } = await supabase.functions.invoke('get-game-details', {
+        body: reqBody
+      });
+      if (funcError) throw new Error(funcError.message);
+      if (!gameData || gameData.error) throw new Error(gameData?.error || 'No se encontró en IGDB');
+
+      // game_id on inventory_item may change if the IGDB ID was wrong
+      if (gameData.id !== item.game_id) {
+        await supabase.from('games').upsert({
+          id: gameData.id,
+          title: gameData.name,
+          summary: gameData.summary,
+          cover_url: gameData.cover?.url,
+        });
+
+        await supabase
+          .from('inventory_items')
+          .update({ game_id: gameData.id })
+          .eq('id', item.id);
+      } else {
+        await supabase.from('games').upsert({
+          id: gameData.id,
+          title: gameData.name,
+          summary: gameData.summary,
+          cover_url: gameData.cover?.url,
+        });
+      }
+
+      window.alert('¡Metadatos actualizados! Cierra y actualiza la página.');
+      window.location.reload();
+    } catch (err: any) {
+      window.alert('Error al sincronizar: ' + err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     setSaving(true);
@@ -28,7 +79,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'fadeInUp 0.3s ease' }}
       >
-        {/* Cover banner */}
         <div className="relative h-48 overflow-hidden">
           <img src={img(item.games?.cover_url, 't_1080p')} className="w-full h-full object-cover object-top" alt="" />
           <div className="absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-[#0c1628]" />
@@ -48,7 +98,17 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
               alt={item.games?.title}
             />
             <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-black text-white leading-tight mb-1">{item.games?.title || 'Unknown'}</h2>
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="text-2xl font-black text-white leading-tight mb-1">{item.games?.title || 'Unknown'}</h2>
+                <button
+                  onClick={handleSyncData}
+                  disabled={syncing}
+                  className="mt-1 p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-emerald-400 transition-colors border border-white/5"
+                  title="Reparar datos incorrectos desde IGDB"
+                >
+                  <Icon name="refresh" className={`w-4 h-4 ${syncing ? 'animate-spin text-emerald-500' : ''}`} />
+                </button>
+              </div>
               <div className="flex items-center gap-2 flex-wrap mt-2">
                 <span className={`text-xs font-bold px-3 py-1 rounded-full border ${STATUS_COLORS[status] || STATUS_COLORS.available}`}>
                   {status.toUpperCase()}
@@ -62,7 +122,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
             <p className="text-sm text-slate-400 leading-relaxed mb-6 line-clamp-3">{item.games.summary}</p>
           )}
 
-          {/* Owner */}
           <div className="flex items-center gap-3 bg-white/5 rounded-2xl p-3 mb-6 border border-white/5">
             <img
               src={item.profiles?.avatar_url || 'https://placehold.co/150/0c1628/10b981?text=?'}
@@ -75,7 +134,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
             </div>
           </div>
 
-          {/* Status Actions */}
           <div className="space-y-2 mb-4">
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">Cambiar Estado</p>
             <div className="grid grid-cols-3 gap-2">
@@ -96,7 +154,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
             </div>
           </div>
 
-          {/* Loan CTA */}
           {status === 'available' && (
             <button
               onClick={() => { onClose(); onLoan(item); }}

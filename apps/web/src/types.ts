@@ -39,4 +39,4 @@ export interface Loan {
   profiles?: Profile;
 }
 
-export type View = 'collection' | 'loans' | 'users';
+export type View = 'collection' | 'loans' | 'users' | 'chat';

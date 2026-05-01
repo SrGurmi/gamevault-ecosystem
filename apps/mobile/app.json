@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "GameVault Mobile",
+    "slug": "gamevault-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "com.salesianos.gamevault",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.salesianos.gamevault",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Esta aplicación necesita acceder a la cámara para escanear los códigos de barras de tus videojuegos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "package": "com.salesianos.gamevault",
+      "permissions": ["CAMERA"]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#10b981",
+      "androidMode": "default"
+    },
+    "plugins": [
+      "expo-sqlite",
+      ["expo-image-picker", { "photosPermission": "Necesitamos acceso a tus fotos para cambiar tu foto de perfil." }],
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

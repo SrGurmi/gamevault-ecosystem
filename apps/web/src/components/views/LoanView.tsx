@@ -126,7 +126,7 @@ export function LoanView({ loans, loading, onReturn }: LoanViewProps) {
           )}
         </div>
         {active.length === 0 ? (
-          <div className="py-10 flex flex-col items-center text-slate-600 bg-white/[0.02] rounded-2xl border border-white/5">
+          <div className="py-10 flex flex-col items-center text-slate-600 bg-white/2 rounded-2xl border border-white/5">
             <Icon name="check" className="w-8 h-8 mb-2 opacity-30" />
             <p className="text-sm font-bold">Sin préstamos activos</p>
           </div>
