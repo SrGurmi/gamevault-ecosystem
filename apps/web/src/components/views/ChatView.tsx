@@ -56,7 +56,6 @@ export function ChatView() {
   let messageChannel: ReturnType<typeof supabase.channel> | null = null;
   let conversationChannel: ReturnType<typeof supabase.channel> | null = null;
 
-  // Get current user
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -72,7 +71,6 @@ export function ChatView() {
     getCurrentUser();
   }, []);
 
-  // Fetch conversations
   const fetchConversations = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -99,7 +97,6 @@ export function ChatView() {
           const messages = (conv.messages || []).filter((m: any) => !m.deleted_at);
           const lastMessage = messages.length > 0 ? messages[0] : null;
 
-          // Get participant profiles
           const participantIds = (conv.conversation_participants || []).map(
             (p: any) => p.user_id
           );
@@ -111,7 +108,7 @@ export function ChatView() {
 
           let name = conv.name;
           if (!name && participants && participants.length > 0) {
-            // For direct messages, use other participant's name
+            // for direct messages, derive display name from the other participant
             const otherParticipants = participants.filter((p: any) => p.id !== user.id);
             if (otherParticipants.length > 0) {
               name = otherParticipants.map((p: any) => p.full_name).join(', ');
@@ -166,7 +163,6 @@ export function ChatView() {
     };
   }, [fetchConversations]);
 
-  // Fetch messages for selected conversation
   const fetchMessages = useCallback(async (conversationId: string) => {
     try {
       setLoadingMessages(true);
@@ -190,7 +186,6 @@ export function ChatView() {
     }
   }, []);
 
-  // Subscribe to message changes
   useEffect(() => {
     if (!selectedConversation) return;
 
@@ -217,7 +212,6 @@ export function ChatView() {
     };
   }, [selectedConversation, fetchMessages]);
 
-  // Send message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageText.trim() || !selectedConversation || !currentUser) return;
@@ -240,7 +234,6 @@ export function ChatView() {
     }
   };
 
-  // Fetch all users for new conversation
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
@@ -263,13 +256,11 @@ export function ChatView() {
     }
   }, []);
 
-  // Create new conversation
   const handleCreateConversation = async (userId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check if conversation already exists
       const { data: existing } = await supabase
         .from('conversations')
         .select('id, conversation_participants(user_id)')
@@ -277,7 +268,6 @@ export function ChatView() {
 
       let conversationId: string | null = null;
 
-      // Look for existing direct conversation with both users
       if (existing) {
         for (const conv of existing) {
           const participantIds = (conv.conversation_participants as any[]).map(
@@ -294,7 +284,6 @@ export function ChatView() {
       }
 
       if (!conversationId) {
-        // Create new conversation
         const { data: newConv, error: createError } = await supabase
           .from('conversations')
           .insert({
@@ -307,7 +296,6 @@ export function ChatView() {
         if (createError || !newConv) throw createError;
         conversationId = newConv.id;
 
-        // Add participants
         const { error: participantError } = await supabase
           .from('conversation_participants')
           .insert([
@@ -318,7 +306,6 @@ export function ChatView() {
         if (participantError) throw participantError;
       }
 
-      // Fetch and select the conversation
       await fetchConversations();
       const selected = conversations.find((c) => c.id === conversationId);
       if (selected) {
@@ -345,9 +332,7 @@ export function ChatView() {
 
   return (
     <div className="flex h-full gap-6">
-      {/* ── CONVERSATIONS LIST ── */}
       <div className="w-80 shrink-0 flex flex-col border border-white/10 rounded-2xl bg-white/2 overflow-hidden">
-        {/* Header */}
         <div className="p-6 pb-4 border-b border-white/10 flex items-center justify-between">
           <h2 className="text-lg font-black text-white">Conversaciones</h2>
           <button
@@ -364,7 +349,6 @@ export function ChatView() {
           </button>
         </div>
 
-        {/* New conversation selector */}
         {showNewConversation && (
           <div className="flex-1 overflow-y-auto border-b border-white/10">
             <p className="px-4 pt-3 pb-2 text-xs font-black text-slate-500 uppercase tracking-wider">
@@ -402,7 +386,6 @@ export function ChatView() {
           </div>
         )}
 
-        {/* Conversations list */}
         {!showNewConversation && (
           <div className="flex-1 overflow-y-auto divide-y divide-white/5">
             {conversations.length === 0 ? (
@@ -474,10 +457,8 @@ export function ChatView() {
         )}
       </div>
 
-      {/* ── MESSAGES PANE ── */}
       {selectedConversation ? (
         <div className="flex-1 flex flex-col border border-white/10 rounded-2xl bg-white/2 overflow-hidden">
-          {/* Header */}
           <div className="p-6 pb-4 border-b border-white/10">
             <div className="flex items-center gap-3">
               {selectedParticipant && (
@@ -503,7 +484,6 @@ export function ChatView() {
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {loadingMessages ? (
               <div className="flex items-center justify-center h-full">
@@ -564,7 +544,6 @@ export function ChatView() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <form
             onSubmit={handleSendMessage}
             className="p-4 border-t border-white/10 flex gap-2"

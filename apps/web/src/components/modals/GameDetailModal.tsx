@@ -34,10 +34,8 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
       if (funcError) throw new Error(funcError.message);
       if (!gameData || gameData.error) throw new Error(gameData?.error || 'No se encontró en IGDB');
 
-      // Update games table with correct id & data
-      // Note: we might actually be changing the `game_id` of `inventory_items` if the ID is totally wrong.
+      // game_id on inventory_item may change if the IGDB ID was wrong
       if (gameData.id !== item.game_id) {
-        // Upsert the new game first
         await supabase.from('games').upsert({
           id: gameData.id,
           title: gameData.name,
@@ -45,13 +43,11 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
           cover_url: gameData.cover?.url,
         });
 
-        // Update the inventory item to point to the correct game id
         await supabase
           .from('inventory_items')
           .update({ game_id: gameData.id })
           .eq('id', item.id);
       } else {
-        // Just update existing
         await supabase.from('games').upsert({
           id: gameData.id,
           title: gameData.name,
@@ -83,7 +79,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'fadeInUp 0.3s ease' }}
       >
-        {/* Cover banner */}
         <div className="relative h-48 overflow-hidden">
           <img src={img(item.games?.cover_url, 't_1080p')} className="w-full h-full object-cover object-top" alt="" />
           <div className="absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-[#0c1628]" />
@@ -127,7 +122,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
             <p className="text-sm text-slate-400 leading-relaxed mb-6 line-clamp-3">{item.games.summary}</p>
           )}
 
-          {/* Owner */}
           <div className="flex items-center gap-3 bg-white/5 rounded-2xl p-3 mb-6 border border-white/5">
             <img
               src={item.profiles?.avatar_url || 'https://placehold.co/150/0c1628/10b981?text=?'}
@@ -140,7 +134,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
             </div>
           </div>
 
-          {/* Status Actions */}
           <div className="space-y-2 mb-4">
             <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">Cambiar Estado</p>
             <div className="grid grid-cols-3 gap-2">
@@ -161,7 +154,6 @@ export function GameDetailModal({ item, onClose, onStatusChange, onLoan }: GameD
             </div>
           </div>
 
-          {/* Loan CTA */}
           {status === 'available' && (
             <button
               onClick={() => { onClose(); onLoan(item); }}

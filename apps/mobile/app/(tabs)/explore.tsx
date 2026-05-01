@@ -20,7 +20,7 @@ export default function TabTwoScreen() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (!session) setScreen('profile'); // reset on logout
+      if (!session) setScreen('profile');
     });
 
     return () => subscription.unsubscribe();

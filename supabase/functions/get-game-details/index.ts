@@ -5,7 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Palabra overlap score (0-1): cuántas palabras del título limpio aparecen en el nombre del juego
 function wordOverlapScore(source: string, candidate: string): number {
   const sourceWords = new Set(source.toLowerCase().split(/\s+/).filter(w => w.length > 1));
   const candidateWords = new Set(candidate.toLowerCase().split(/\s+/).filter(w => w.length > 1));
@@ -20,7 +19,7 @@ function wordOverlapScore(source: string, candidate: string): number {
 function fixCoverUrl(game: { cover?: { url?: string } } & Record<string, unknown>) {
   if (game?.cover?.url) {
     game.cover.url = game.cover.url.startsWith('//') ? `https:${game.cover.url}` : game.cover.url;
-    // IGDB devuelve miniaturas, pedimos imagen grande
+    // IGDB returns thumbnails by default; request large cover
     game.cover.url = game.cover.url.replace('/t_thumb/', '/t_cover_big/');
   }
   return game;
@@ -45,7 +44,6 @@ serve(async (req: Request) => {
       throw new Error("Server configuration error: Missing Twitch credentials");
     }
 
-    // 1. Obtener Token de Twitch
     console.log("Fetching Twitch token...");
     const tokenRes = await fetch(
       `https://id.twitch.tv/oauth2/token?client_id=${clientID}&client_secret=${clientSecret}&grant_type=client_credentials`,
@@ -61,7 +59,6 @@ serve(async (req: Request) => {
     const { access_token } = await tokenRes.json();
     const igdbHeaders = { 'Client-ID': clientID, 'Authorization': `Bearer ${access_token}` };
 
-    // Helper: fetch game details by IGDB numeric ID
     const fetchGameById = async (gameId: number | string) => {
       const res = await fetch('https://api.igdb.com/v4/games', {
         method: 'POST',
@@ -73,7 +70,7 @@ serve(async (req: Request) => {
       return Array.isArray(games) && games.length > 0 ? fixCoverUrl(games[0]) : null;
     };
 
-    // ── MODE A: Direct IGDB ID lookup ─────────────────────────────────────
+    // MODE A: direct IGDB ID lookup
     if (igdbId) {
       console.log(`Direct IGDB ID lookup: ${igdbId}`);
       const game = await fetchGameById(igdbId);
@@ -90,7 +87,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // ── MODE B: Text search on IGDB ───────────────────────────────────────
+    // MODE B: text search
     if (searchQuery) {
       console.log(`Text search on IGDB: "${searchQuery}"`);
       const res = await fetch('https://api.igdb.com/v4/games', {
@@ -115,8 +112,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // ── MODE C: Barcode scan ──────────────────────────────────────────────
-    // Intentamos variantes: original, UPC-A (12 dígitos), EAN-13 (13 dígitos con 0 delante)
+    // MODE C: barcode lookup — try UPC-A / EAN-13 variants
     const barcodesToTry = [...new Set([
       barcode,
       barcode.padStart(12, '0'),
@@ -144,7 +140,6 @@ serve(async (req: Request) => {
       }
     }
 
-    // 3. Si encontramos match directo, obtenemos detalles
     if (externalData.length > 0) {
       const gameId = externalData[0].game as string | number;
       const game = await fetchGameById(gameId);
@@ -157,7 +152,7 @@ serve(async (req: Request) => {
       }
     }
 
-    // 4. FALLBACK: Consultar UPC Item DB para obtener el nombre
+    // FALLBACK: no direct IGDB barcode match — try UPC Item DB for title
     console.log("No direct IGDB match. Trying UPC database fallback...");
 
     const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
@@ -217,12 +212,11 @@ serve(async (req: Request) => {
       return Array.isArray(data) ? data : [];
     };
 
-    // Intentamos hasta 5 candidatos del UPC DB
     for (const item of upcData.items.slice(0, 5)) {
       const rawTitle: string = item.title || '';
       console.log(`Processing UPC title: "${rawTitle}"`);
 
-      // Detectar plataforma - iterar en orden de especificidad (más largo primero)
+      // detect platform — longest key first to avoid "PS4" matching before "PS4 Pro"
       let platformId: number | null = null;
       const upperTitle = rawTitle.toUpperCase();
       const sortedPlatformKeys = Object.keys(platformMap).sort((a, b) => b.length - a.length);
@@ -234,15 +228,13 @@ serve(async (req: Request) => {
         }
       }
 
-      // Limpiar el título
       let queryTitle = rawTitle
-        .replace(/[\(\[].*?(\)|\]|$)/g, '')  // quitar paréntesis/corchetes
-        .replace(/[:\-\/&!¡?¿]/g, ' ')        // símbolos → espacio
+        .replace(/[\(\[].*?(\)|\]|$)/g, '')
+        .replace(/[:\-\/&!¡?¿]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
-      // Quitar palabras de la blacklist (insensible a mayúsculas)
-      // Ordenamos por longitud desc para evitar que "PS4" quite parte de "PS4 Pro"
+      // sort descending to avoid "PS4" eating part of "PS4 Pro"
       const sortedBlacklist = [...blacklist].sort((a, b) => b.length - a.length);
       for (const word of sortedBlacklist) {
         const reg = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
@@ -254,7 +246,6 @@ serve(async (req: Request) => {
         .replace(/\s+/g, ' ')
         .trim();
 
-      // Eliminar palabras duplicadas preservando orden
       const seen = new Set<string>();
       queryTitle = queryTitle.split(' ').filter(w => {
         const lower = w.toLowerCase();
@@ -270,16 +261,16 @@ serve(async (req: Request) => {
 
       console.log(`Searching IGDB for: "${queryTitle}"${platformId ? ` (platform ${platformId})` : ''}`);
 
-      // Intento 1: con filtro de plataforma (si se detectó)
+      // attempt 1: with platform filter
       let results = await searchIGDB(queryTitle, platformId);
 
-      // Intento 2: sin filtro de plataforma (para juegos multiplataforma o detección fallida)
+      // attempt 2: without platform filter (multiplatform titles or failed detection)
       if (results.length === 0 && platformId !== null) {
         console.log(`No results with platform filter. Retrying without platform...`);
         results = await searchIGDB(queryTitle, null);
       }
 
-      // Intento 3: título más agresivo (solo palabras >2 chars)
+      // attempt 3: aggressive clean — words >2 chars only
       if (results.length === 0) {
         const aggressiveTitle = queryTitle.split(' ').filter(w => w.length > 2).join(' ');
         if (aggressiveTitle !== queryTitle && aggressiveTitle.length > 3) {
@@ -293,7 +284,6 @@ serve(async (req: Request) => {
 
       if (results.length === 0) continue;
 
-      // Elegir el mejor match por solapamiento de palabras
       const scored = results.map((g: any) => ({
         game: g,
         score: wordOverlapScore(queryTitle, g.name),
@@ -304,8 +294,7 @@ serve(async (req: Request) => {
 
       console.log(`Best match: "${best.game.name}" (score: ${best.score.toFixed(2)})`);
 
-      // Umbral mínimo: al menos 25% de las palabras deben coincidir
-      // (era 40% – demasiado estricto para títulos cortos como "Wii Sports Resort")
+      // min 25% word overlap — was 40%, too strict for short titles like "Wii Sports Resort"
       if (best.score < 0.25 && scored.length > 1) {
         console.log(`Low confidence (${best.score.toFixed(2)}), trying next UPC candidate...`);
         continue;

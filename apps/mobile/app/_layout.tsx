@@ -23,14 +23,11 @@ export default function RootLayout() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Register for push notifications
         const token = await registerForPushNotificationsAsync();
         if (token) {
-          // Save token to database
           await saveDeviceToken(user.id, token);
         }
 
-        // Set up notification response listener
         notificationListener.current = Notifications.addNotificationResponseReceivedListener(response => {
           console.log('Notification response:', response);
         });

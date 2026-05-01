@@ -15,7 +15,7 @@ export function LoanModal({ item, users, onClose, onSuccess }: LoanModalProps) {
   const [selectedUserId, setSelectedUserId] = useState(item.user_id || '');
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 14); // 2 semanas por defecto
+    d.setDate(d.getDate() + 14);
     return d.toISOString().split('T')[0];
   });
   const [notes, setNotes] = useState('');
@@ -55,7 +55,6 @@ export function LoanModal({ item, users, onClose, onSuccess }: LoanModalProps) {
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'fadeInUp 0.3s ease' }}
       >
-        {/* Header */}
         <div className="flex items-center gap-4 p-6 border-b border-white/5">
           <img src={img(item.games?.cover_url)} className="w-12 h-16 object-cover rounded-xl shrink-0" alt="" />
           <div className="flex-1 min-w-0">

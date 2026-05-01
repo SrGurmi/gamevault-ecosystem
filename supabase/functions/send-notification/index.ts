@@ -6,7 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Tipos de notificación disponibles
 type NotificationType = 'new_loan' | 'loan_reminder' | 'loan_overdue' | 'system_alert' | 'weekly_report'
 
 const NOTIFICATION_MESSAGES: Record<NotificationType, { title: string; body: (data: Record<string, string>) => string }> = {
@@ -32,7 +31,6 @@ const NOTIFICATION_MESSAGES: Record<NotificationType, { title: string; body: (da
   },
 }
 
-// Mapa entre tipo de notificación y campo de preferencia
 const PREFERENCE_FIELD: Record<NotificationType, string> = {
   new_loan: 'new_loans',
   loan_reminder: 'loan_reminders',
@@ -64,11 +62,10 @@ serve(async (req: Request) => {
       )
     }
 
-    // Normalizar lista de destinatarios
     const targetIds = userIds ?? (userId ? [userId] : [])
     const preferenceField = PREFERENCE_FIELD[type]
 
-    // 1. Filtrar usuarios que tienen activada esta preferencia
+    // 1. filter to users who have this notification type enabled
     const { data: prefs, error: prefsError } = await supabase
       .from('notification_preferences')
       .select('user_id')
@@ -86,7 +83,7 @@ serve(async (req: Request) => {
       )
     }
 
-    // 2. Obtener tokens de esos usuarios
+    // 2. fetch device tokens for those users
     const { data: tokens, error: tokensError } = await supabase
       .from('device_tokens')
       .select('token, platform')
@@ -100,7 +97,7 @@ serve(async (req: Request) => {
       )
     }
 
-    // 3. Construir mensajes para Expo Push API
+    // 3. build Expo Push messages
     const { title, body } = NOTIFICATION_MESSAGES[type]
     const messages = tokens.map((t: { token: string; platform: string }) => ({
       to: t.token,
@@ -110,7 +107,7 @@ serve(async (req: Request) => {
       data: { type, ...data },
     }))
 
-    // 4. Enviar a Expo Push API (máx 100 por llamada)
+    // 4. send in chunks of 100 (Expo Push API limit)
     const chunks = []
     for (let i = 0; i < messages.length; i += 100) {
       chunks.push(messages.slice(i, i + 100))

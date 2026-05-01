@@ -70,7 +70,10 @@ const timeAgoShort = (date: string) => {
   if (mins < 60) return `${mins}m`;
   if (hours < 24) return `${hours}h`;
   if (days < 7) return `${days}d`;
-  return new Date(date).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  return new Date(date).toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "short",
+  });
 };
 
 const FALLBACK_AVATAR = "https://placehold.co/56/0c1628/10b981?text=?";
@@ -78,10 +81,11 @@ const FALLBACK_AVATAR = "https://placehold.co/56/0c1628/10b981?text=?";
 /** Returns the display name and avatar for a conversation */
 const convDisplayInfo = (
   conv: ConversationWithDetails,
-  currentUserId: string
+  currentUserId: string,
 ): { name: string; avatar: string | null; subtitle: string } => {
   if (conv.type === "direct") {
-    const other = conv.profiles.find((p) => p.id !== currentUserId) ?? conv.profiles[0];
+    const other =
+      conv.profiles.find((p) => p.id !== currentUserId) ?? conv.profiles[0];
     if (other) {
       return {
         name: other.full_name || "Usuario",
@@ -96,7 +100,7 @@ const convDisplayInfo = (
     .map((p) => p.full_name || "?")
     .join(", ");
   return {
-    name: conv.name || (names || "Grupo"),
+    name: conv.name || names || "Grupo",
     avatar: null,
     subtitle: `${conv.profiles.length} participantes`,
   };
@@ -112,7 +116,9 @@ function InitialsAvatar({ name, size = 52 }: { name: string; size?: number }) {
         { width: size, height: size, borderRadius: size / 2 },
       ]}
     >
-      <Text style={[styles.initialsText, { fontSize: size * 0.38 }]}>{initial}</Text>
+      <Text style={[styles.initialsText, { fontSize: size * 0.38 }]}>
+        {initial}
+      </Text>
     </View>
   );
 }
@@ -141,8 +147,11 @@ function Avatar({
 // ══════════════════════════════════════════════════════════════════════════════
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
-  const [selectedConv, setSelectedConv] = useState<ConversationWithDetails | null>(null);
+  const [conversations, setConversations] = useState<ConversationWithDetails[]>(
+    [],
+  );
+  const [selectedConv, setSelectedConv] =
+    useState<ConversationWithDetails | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState("");
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
@@ -160,7 +169,9 @@ export default function ChatScreen() {
   // ── Current user ────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase
           .from("profiles")
@@ -176,16 +187,20 @@ export default function ChatScreen() {
   const fetchConversations = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: convData } = await supabase
         .from("conversations")
-        .select(`
+        .select(
+          `
           *,
           conversation_participants (user_id, last_read_at),
           messages (id, sender_id, content, created_at, deleted_at)
-        `)
+        `,
+        )
         .order("updated_at", { ascending: false });
 
       if (!convData) return;
@@ -194,7 +209,9 @@ export default function ChatScreen() {
       const mine = convData.filter(
         (c: any) =>
           c.created_by === user.id ||
-          (c.conversation_participants || []).some((p: any) => p.user_id === user.id)
+          (c.conversation_participants || []).some(
+            (p: any) => p.user_id === user.id,
+          ),
       );
 
       // Build enriched list
@@ -205,13 +222,15 @@ export default function ChatScreen() {
             .filter((m: any) => !m.deleted_at)
             .sort(
               (a: any, b: any) =>
-                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                new Date(a.created_at).getTime() -
+                new Date(b.created_at).getTime(),
             );
-          const lastMessage = validMsgs.length > 0 ? validMsgs[validMsgs.length - 1] : null;
+          const lastMessage =
+            validMsgs.length > 0 ? validMsgs[validMsgs.length - 1] : null;
 
           // Fetch ALL participant profiles
           const participantIds = (conv.conversation_participants || []).map(
-            (p: any) => p.user_id
+            (p: any) => p.user_id,
           );
           let profiles: Profile[] = [];
           if (participantIds.length > 0) {
@@ -236,7 +255,7 @@ export default function ChatScreen() {
             lastMessage,
             unreadCount: 0,
           };
-        })
+        }),
       );
 
       setConversations(enriched);
@@ -253,22 +272,32 @@ export default function ChatScreen() {
     fetchConversations();
 
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       const ch = supabase
         .channel(`conv-list-${user.id}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () =>
-          fetchConversations(true)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "messages" },
+          () => fetchConversations(true),
         )
-        .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () =>
-          fetchConversations(true)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "conversations" },
+          () => fetchConversations(true),
         )
         .subscribe();
-      return () => { supabase.removeChannel(ch); };
+      return () => {
+        supabase.removeChannel(ch);
+      };
     })();
 
     convPollRef.current = setInterval(() => fetchConversations(true), 4000);
-    return () => { if (convPollRef.current) clearInterval(convPollRef.current); };
+    return () => {
+      if (convPollRef.current) clearInterval(convPollRef.current);
+    };
   }, [fetchConversations]);
 
   // ── Fetch messages ───────────────────────────────────────────────────────────
@@ -283,7 +312,10 @@ export default function ChatScreen() {
         .order("created_at", { ascending: true });
       if (data) {
         setMessages(data as Message[]);
-        setTimeout(() => flatRef.current?.scrollToEnd({ animated: !silent }), 60);
+        setTimeout(
+          () => flatRef.current?.scrollToEnd({ animated: !silent }),
+          60,
+        );
       }
     } catch (e) {
       console.error("fetchMessages:", e);
@@ -300,14 +332,21 @@ export default function ChatScreen() {
     fetchMessages(selectedConv.id);
     const ch = supabase
       .channel(`msgs-${selectedConv.id}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "messages",
-        filter: `conversation_id=eq.${selectedConv.id}`,
-      }, () => fetchMessages(selectedConv.id, true))
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${selectedConv.id}`,
+        },
+        () => fetchMessages(selectedConv.id, true),
+      )
       .subscribe();
-    msgPollRef.current = setInterval(() => fetchMessages(selectedConv.id, true), 2000);
+    msgPollRef.current = setInterval(
+      () => fetchMessages(selectedConv.id, true),
+      2000,
+    );
     return () => {
       supabase.removeChannel(ch);
       if (msgPollRef.current) clearInterval(msgPollRef.current);
@@ -352,7 +391,9 @@ export default function ChatScreen() {
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
@@ -368,7 +409,9 @@ export default function ChatScreen() {
   const startConversation = async (otherId: string) => {
     setShowNewChat(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       const { data: conv, error } = await supabase
         .from("conversations")
@@ -414,7 +457,10 @@ export default function ChatScreen() {
           <Text style={styles.headerTitle}>Mensajes</Text>
           <TouchableOpacity
             style={styles.addBtn}
-            onPress={() => { setShowNewChat(!showNewChat); if (!showNewChat) loadUsers(); }}
+            onPress={() => {
+              setShowNewChat(!showNewChat);
+              if (!showNewChat) loadUsers();
+            }}
             activeOpacity={0.75}
           >
             <Text style={styles.addBtnText}>+</Text>
@@ -426,7 +472,10 @@ export default function ChatScreen() {
           <View style={styles.newChatSheet}>
             <Text style={styles.sheetLabel}>NUEVA CONVERSACIÓN</Text>
             {loadingUsers ? (
-              <ActivityIndicator color={GV_EMERALD} style={{ marginVertical: 16 }} />
+              <ActivityIndicator
+                color={GV_EMERALD}
+                style={{ marginVertical: 16 }}
+              />
             ) : (
               <ScrollView showsVerticalScrollIndicator={false}>
                 {otherUsers.map((u) => (
@@ -436,9 +485,15 @@ export default function ChatScreen() {
                     onPress={() => startConversation(u.id)}
                     activeOpacity={0.7}
                   >
-                    <Avatar uri={u.avatar_url} name={u.full_name || "?"} size={44} />
+                    <Avatar
+                      uri={u.avatar_url}
+                      name={u.full_name || "?"}
+                      size={44}
+                    />
                     <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.userRowName}>{u.full_name || "Usuario"}</Text>
+                      <Text style={styles.userRowName}>
+                        {u.full_name || "Usuario"}
+                      </Text>
                       <Text style={styles.userRowRole}>
                         {u.role === "admin" ? "Administrador" : "Usuario"}
                       </Text>
@@ -459,7 +514,10 @@ export default function ChatScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => { setRefreshing(true); fetchConversations(); }}
+                onRefresh={() => {
+                  setRefreshing(true);
+                  fetchConversations();
+                }}
                 tintColor={GV_EMERALD}
               />
             }
@@ -477,15 +535,15 @@ export default function ChatScreen() {
                   {/* Avatar */}
                   <View style={styles.convAvatarWrap}>
                     <Avatar uri={avatar} name={name} size={52} />
-                    {item.unreadCount > 0 && (
-                      <View style={styles.onlineDot} />
-                    )}
+                    {item.unreadCount > 0 && <View style={styles.onlineDot} />}
                   </View>
 
                   {/* Text */}
                   <View style={styles.convTextWrap}>
                     <View style={styles.convTopRow}>
-                      <Text style={styles.convName} numberOfLines={1}>{name}</Text>
+                      <Text style={styles.convName} numberOfLines={1}>
+                        {name}
+                      </Text>
                       <Text style={styles.convTime}>
                         {lastMsg
                           ? timeAgoShort(lastMsg.created_at)
@@ -498,7 +556,9 @@ export default function ChatScreen() {
                       </Text>
                       {item.unreadCount > 0 && (
                         <View style={styles.badge}>
-                          <Text style={styles.badgeText}>{item.unreadCount}</Text>
+                          <Text style={styles.badgeText}>
+                            {item.unreadCount}
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -506,9 +566,7 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               );
             }}
-            ItemSeparatorComponent={() => (
-              <View style={styles.separator} />
-            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
                 <Text style={styles.emptyIcon}>💬</Text>
@@ -527,7 +585,10 @@ export default function ChatScreen() {
 
   // ── CHAT VIEW ─────────────────────────────────────────────────────────────────
   const userId = currentUser?.id ?? "";
-  const { name: convName, avatar: convAvatar } = convDisplayInfo(selectedConv, userId);
+  const { name: convName, avatar: convAvatar } = convDisplayInfo(
+    selectedConv,
+    userId,
+  );
 
   return (
     <KeyboardAvoidingView
@@ -547,7 +608,9 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <Avatar uri={convAvatar} name={convName} size={38} />
         <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={styles.chatHeaderName} numberOfLines={1}>{convName}</Text>
+          <Text style={styles.chatHeaderName} numberOfLines={1}>
+            {convName}
+          </Text>
           <Text style={styles.chatHeaderSub}>
             {selectedConv.type === "direct" ? "Chat directo" : "Grupo"}
           </Text>
@@ -578,8 +641,7 @@ export default function ChatScreen() {
             const isTemp = item.id.startsWith("tmp-");
             const prevMsg = index > 0 ? messages[index - 1] : null;
             const showAvatar =
-              !isOwn &&
-              (!prevMsg || prevMsg.sender_id !== item.sender_id);
+              !isOwn && (!prevMsg || prevMsg.sender_id !== item.sender_id);
             const showName =
               !isOwn && selectedConv.type === "group" && showAvatar;
 
@@ -592,7 +654,9 @@ export default function ChatScreen() {
               >
                 {/* Other user avatar */}
                 {!isOwn && (
-                  <View style={{ width: 32, alignSelf: "flex-end", marginRight: 6 }}>
+                  <View
+                    style={{ width: 32, alignSelf: "flex-end", marginRight: 6 }}
+                  >
                     {showAvatar ? (
                       <Avatar
                         uri={item.profiles?.avatar_url}
@@ -603,16 +667,26 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-                <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther, isTemp && { opacity: 0.55 }]}>
+                <View
+                  style={[
+                    styles.bubble,
+                    isOwn ? styles.bubbleOwn : styles.bubbleOther,
+                    isTemp && { opacity: 0.55 },
+                  ]}
+                >
                   {showName && (
                     <Text style={styles.bubbleSender}>
                       {item.profiles?.full_name || "Usuario"}
                     </Text>
                   )}
-                  <Text style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}>
+                  <Text
+                    style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}
+                  >
                     {item.content}
                   </Text>
-                  <Text style={[styles.bubbleTime, isOwn && styles.bubbleTimeOwn]}>
+                  <Text
+                    style={[styles.bubbleTime, isOwn && styles.bubbleTimeOwn]}
+                  >
                     {isTemp ? "Enviando…" : timeAgoShort(item.created_at)}
                     {isOwn && !isTemp && "  ✓"}
                   </Text>
@@ -639,7 +713,10 @@ export default function ChatScreen() {
           blurOnSubmit={false}
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!messageText.trim() || sending) && styles.sendBtnDisabled]}
+          style={[
+            styles.sendBtn,
+            (!messageText.trim() || sending) && styles.sendBtnDisabled,
+          ]}
           onPress={handleSend}
           disabled={!messageText.trim() || sending}
           activeOpacity={0.75}
@@ -658,7 +735,12 @@ export default function ChatScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const EMERALD = "#10b981";
 const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: GV_DARK },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: GV_DARK,
+  },
 
   // ── Header ──────────────────────────────────────────────────────────────────
   header: {
@@ -671,7 +753,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerTitle: { fontSize: 24, fontWeight: "800", color: "#fff", letterSpacing: -0.5 },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: -0.5,
+  },
   addBtn: {
     width: 34,
     height: 34,
@@ -680,7 +767,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  addBtnText: { color: "#fff", fontSize: 22, fontWeight: "300", lineHeight: 28 },
+  addBtnText: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "300",
+    lineHeight: 28,
+  },
 
   // ── New chat sheet ───────────────────────────────────────────────────────────
   newChatSheet: {
@@ -731,11 +823,31 @@ const styles = StyleSheet.create({
     borderColor: GV_DARK,
   },
   convTextWrap: { flex: 1, minWidth: 0 },
-  convTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
-  convName: { fontSize: 15, fontWeight: "700", color: "#fff", flex: 1, marginRight: 8 },
+  convTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  convName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+    flex: 1,
+    marginRight: 8,
+  },
   convTime: { fontSize: 11, color: "rgba(255,255,255,0.35)", flexShrink: 0 },
-  convBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  convPreview: { fontSize: 13, color: "rgba(255,255,255,0.45)", flex: 1, marginRight: 8 },
+  convBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  convPreview: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.45)",
+    flex: 1,
+    marginRight: 8,
+  },
   badge: {
     backgroundColor: EMERALD,
     borderRadius: 10,
@@ -746,17 +858,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   badgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: GV_BORDER, marginLeft: 82 },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: GV_BORDER,
+    marginLeft: 82,
+  },
 
   // ── Initials avatar ──────────────────────────────────────────────────────────
-  initialsAvatar: { backgroundColor: "rgba(16,185,129,0.18)", justifyContent: "center", alignItems: "center" },
+  initialsAvatar: {
+    backgroundColor: "rgba(16,185,129,0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   initialsText: { color: EMERALD, fontWeight: "700" },
 
   // ── Empty ────────────────────────────────────────────────────────────────────
   emptyWrap: { paddingTop: 80, alignItems: "center", paddingHorizontal: 32 },
   emptyIcon: { fontSize: 52, marginBottom: 12 },
-  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#fff", marginBottom: 6 },
-  emptyBody: { fontSize: 13, color: "rgba(255,255,255,0.4)", textAlign: "center" },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 6,
+  },
+  emptyBody: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.4)",
+    textAlign: "center",
+  },
 
   // ── Chat header ──────────────────────────────────────────────────────────────
   chatHeader: {
@@ -779,17 +908,42 @@ const styles = StyleSheet.create({
   msgRowOwn: { justifyContent: "flex-end" },
   msgRowOther: { justifyContent: "flex-start" },
 
-  bubble: { maxWidth: SCREEN_W * 0.74, borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8 },
+  bubble: {
+    maxWidth: SCREEN_W * 0.74,
+    borderRadius: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
   bubbleOwn: { backgroundColor: EMERALD, borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: GV_CARD, borderBottomLeftRadius: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: GV_BORDER },
+  bubbleOther: {
+    backgroundColor: GV_CARD,
+    borderBottomLeftRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: GV_BORDER,
+  },
 
-  bubbleSender: { fontSize: 11, fontWeight: "700", color: EMERALD, marginBottom: 2 },
+  bubbleSender: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: EMERALD,
+    marginBottom: 2,
+  },
   bubbleText: { fontSize: 15, color: "rgba(255,255,255,0.85)", lineHeight: 21 },
   bubbleTextOwn: { color: "#fff" },
-  bubbleTime: { fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 3, textAlign: "right" },
+  bubbleTime: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.45)",
+    marginTop: 3,
+    textAlign: "right",
+  },
   bubbleTimeOwn: { color: "rgba(255,255,255,0.6)" },
 
-  emptyMsgWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
+  emptyMsgWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 80,
+  },
   emptyMsgText: { color: "rgba(255,255,255,0.3)", fontSize: 14 },
 
   // ── Input bar ────────────────────────────────────────────────────────────────

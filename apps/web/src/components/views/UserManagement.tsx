@@ -38,7 +38,6 @@ function UserGamesList({ userId }: { userId: string }) {
   const toggleExpanded = useCallback(() => {
     setExpanded((prev) => {
       if (!prev) {
-        // trigger fetch on first open
         fetchItems();
       }
       return !prev;
@@ -115,7 +114,6 @@ function ResetPasswordModal({
     e.preventDefault();
     if (newPass.length < 6) return;
     setSaving(true);
-    // Usando supabase admin API via edge function o directamente
     const { error } = await supabase.auth.updateUser({ password: newPass });
     if (!error) setDone(true);
     setSaving(false);
@@ -189,7 +187,6 @@ function UserCard({ user, onToggleAdmin, onUserModified }: UserCardProps) {
 
   return (
     <div className="flex items-center p-4 rounded-2xl bg-white/3 border border-white/5 hover:border-emerald-500/20 transition-all gap-4">
-      {/* User header */}
       <div className="flex items-center gap-3 mb-4">
         <div className="relative shrink-0">
           <img
@@ -223,7 +220,6 @@ function UserCard({ user, onToggleAdmin, onUserModified }: UserCardProps) {
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex gap-2 mb-1">
         <button
           onClick={handleToggle}
@@ -249,7 +245,6 @@ function UserCard({ user, onToggleAdmin, onUserModified }: UserCardProps) {
         </button>
       </div>
 
-      {/* Games list */}
       <UserGamesList userId={user.id} />
 
       {showResetPass && (
@@ -274,7 +269,6 @@ export function UserManagement({
 
   return (
     <div className="space-y-5">
-      {/* Search */}
       <div className="relative w-full max-w-xs">
         <Icon
           name="search"
@@ -289,7 +283,6 @@ export function UserManagement({
         />
       </div>
 
-      {/* Stats bar */}
       <div className="flex items-center gap-4 text-xs text-slate-500">
         <span>
           <span className="text-white font-bold">{users.length}</span> usuarios
@@ -303,7 +296,6 @@ export function UserManagement({
         </span>
       </div>
 
-      {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((user) => (
           <UserCard

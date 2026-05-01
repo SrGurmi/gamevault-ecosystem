@@ -6,10 +6,10 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Ver todos los archivos del monorepo
+// watch all workspace packages
 config.watchFolders = [workspaceRoot];
 
-// 2. Forzar a Metro a usar solo una copia de React y React Native (Singletons)
+// deduplicate React/React Native singletons across workspace
 config.resolver.nodeModulesPaths = [path.resolve(projectRoot, 'node_modules'), path.resolve(workspaceRoot, 'node_modules')];
 
 config.resolver.disableHierarchicalLookup = true;
