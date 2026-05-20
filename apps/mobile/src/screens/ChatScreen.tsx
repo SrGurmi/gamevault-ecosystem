@@ -413,6 +413,31 @@ export default function ChatScreen() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+
+      // Check if a direct conversation already exists between these two users
+      const { data: existing } = await supabase
+        .from("conversations")
+        .select(`
+          *,
+          conversation_participants!inner (user_id)
+        `)
+        .eq("type", "direct")
+        .eq("conversation_participants.user_id", otherId);
+
+      if (existing && existing.length > 0) {
+        // Filter to only conversations where current user is also a participant
+        const myConvIds = conversations.map((c) => c.id);
+        const found = existing.find((c: any) => myConvIds.includes(c.id));
+        if (found) {
+          const conv = conversations.find((c) => c.id === found.id);
+          if (conv) {
+            setSelectedConv(conv);
+            return;
+          }
+        }
+      }
+
+      // No existing conversation — create a new one
       const { data: conv, error } = await supabase
         .from("conversations")
         .insert({ type: "direct", created_by: user.id })

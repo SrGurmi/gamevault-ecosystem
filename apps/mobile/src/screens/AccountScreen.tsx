@@ -183,9 +183,9 @@ function EditProfileSection({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      // Get public URL
+      // Get public URL with cache-busting timestamp
       const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
-      const publicUrl = publicUrlData.publicUrl;
+      const publicUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
 
       // Update profile with avatar URL
       const { error: updateError } = await supabase

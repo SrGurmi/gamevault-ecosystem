@@ -33,3 +33,11 @@ redirect_uri = "https://snugging-discontentedly-daxton.ngrok-free.dev/auth/v1/ca
 [functions.get-game-details]
 verify_jwt = false
 import_map = "./functions/import_map.json"
+
+[functions.recognize-game-cover]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.send-notification]
+verify_jwt = true
+import_map = "./functions/import_map.json"

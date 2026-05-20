@@ -11,6 +11,7 @@ import {
   Animated,
   TextInput,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import {
   CameraView,
   useCameraPermissions,
@@ -25,6 +26,8 @@ const FRAME_SIZE = width * 0.72;
 const GV_DARK = "#040a14";
 const GV_EMERALD = "#10b981";
 
+type ScanMode = "barcode" | "cover";
+
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -36,7 +39,13 @@ export default function ScannerScreen() {
   const [showManual, setShowManual] = useState(false);
   const [manualQuery, setManualQuery] = useState("");
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
+  const [mode, setMode] = useState<ScanMode>("barcode");
+  // scanStatus: extra label shown inside the frame
+  const [scanStatus, setScanStatus] = useState<"idle" | "found" | "not_found">("idle");
   const isLockedRef = useRef(false);
+  // Track the last barcode tried so we don't re-fire on the same barcode immediately
+  const lastBarcodeRef = useRef<string | null>(null);
+  const cameraRef = useRef<CameraView | null>(null);
   const scanAnim = useRef(new Animated.Value(0)).current;
 
   // Animated scan line
@@ -59,8 +68,19 @@ export default function ScannerScreen() {
   }, [scanAnim]);
 
   React.useEffect(() => {
-    if (!scanned && !isSaving) startScanAnim();
-  }, [scanned, isSaving, startScanAnim]);
+    if (mode === "barcode" && !scanned && !isSaving) startScanAnim();
+    else scanAnim.stopAnimation();
+  }, [mode, scanned, isSaving, startScanAnim, scanAnim]);
+
+  const switchMode = (next: ScanMode) => {
+    if (isSaving || mode === next) return;
+    isLockedRef.current = false;
+    setScanned(false);
+    setShowManual(false);
+    setManualQuery("");
+    setPendingBarcode(null);
+    setMode(next);
+  };
 
   const scanLineTranslate = scanAnim.interpolate({
     inputRange: [0, 1],
@@ -130,6 +150,7 @@ export default function ScannerScreen() {
 
   const saveToInventory = async (barcode: string) => {
     setIsSaving(true);
+    setScanStatus("idle");
     try {
       const { data: gameData, error: funcError } =
         await supabase.functions.invoke("get-game-details", {
@@ -138,7 +159,9 @@ export default function ScannerScreen() {
 
       if (funcError) throw new Error(`Error de conexión: ${funcError.message}`);
       if (!gameData || gameData.error) {
-        // Offer manual fallback instead of hard error
+        // Game not found → offer manual fallback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setScanStatus("not_found");
         setPendingBarcode(barcode);
         setShowManual(true);
         setScanned(false);
@@ -147,11 +170,93 @@ export default function ScannerScreen() {
       }
 
       const title = await persistGame(gameData, barcode);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setScanStatus("found");
       setLastResult({ title, barcode });
     } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setScanStatus("not_found");
       Alert.alert("Aviso", err.message || "Error al procesar el código.");
       isLockedRef.current = false;
       setScanned(false);
+      setLastResult(null);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const buildOcrBody = async (
+    base64: string,
+    photoUri: string,
+  ): Promise<{ imageBase64?: string; imageUrl?: string; mimeType: string }> => {
+    const STORAGE_THRESHOLD = 700_000; // ~700KB raw → keep base64 well under 1MB POST
+    const estBytes = (base64.length * 3) / 4;
+
+    if (estBytes <= STORAGE_THRESHOLD) {
+      return { imageBase64: base64, mimeType: "image/jpeg" };
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Debes iniciar sesión para subir imágenes grandes.");
+
+    const path = `${user.id}/${Date.now()}.jpg`;
+    const resp = await fetch(photoUri);
+    const blob = await resp.blob();
+
+    const { error: uploadErr } = await supabase.storage
+      .from("game-covers")
+      .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+    if (uploadErr) throw uploadErr;
+
+    const { data: signed, error: signedErr } = await supabase.storage
+      .from("game-covers")
+      .createSignedUrl(path, 60);
+    if (signedErr || !signed)
+      throw signedErr ?? new Error("No se pudo firmar la URL de la imagen.");
+
+    return { imageUrl: signed.signedUrl, mimeType: "image/jpeg" };
+  };
+
+  const captureCover = async () => {
+    if (isLockedRef.current || isSaving) return;
+    if (!cameraRef.current) {
+      Alert.alert("Cámara no lista", "Intenta de nuevo en un momento.");
+      return;
+    }
+    isLockedRef.current = true;
+    setIsSaving(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.35,
+        base64: true,
+        skipProcessing: true,
+      });
+      if (!photo?.base64 || !photo?.uri)
+        throw new Error("No se pudo capturar la imagen.");
+
+      const body = await buildOcrBody(photo.base64, photo.uri);
+
+      const { data: gameData, error: funcError } =
+        await supabase.functions.invoke("recognize-game-cover", { body });
+
+      if (funcError) throw new Error(`Error de conexión: ${funcError.message}`);
+      if (!gameData || gameData.error) {
+        const candidate = gameData?._ocr?.candidate;
+        setPendingBarcode(null);
+        setManualQuery(candidate ?? "");
+        setShowManual(true);
+        isLockedRef.current = false;
+        return;
+      }
+
+      const generatedBarcode = `ocr-${gameData.id}-${Date.now()}`;
+      const title = await persistGame(gameData, generatedBarcode);
+      setLastResult({ title, barcode: generatedBarcode });
+    } catch (err: any) {
+      Alert.alert("Aviso", err.message || "Error al procesar la carátula.");
+      isLockedRef.current = false;
       setLastResult(null);
     } finally {
       setIsSaving(false);
@@ -189,18 +294,25 @@ export default function ScannerScreen() {
 
   const handleBarcodeScanned = (result: BarcodeScanningResult) => {
     if (isLockedRef.current) return;
+    // Debounce: ignore if it's the exact same barcode as the last failed attempt
+    // within the same scan session (user must explicitly reset or try a different barcode)
+    if (lastBarcodeRef.current === result.data && scanStatus === "not_found") return;
     isLockedRef.current = true;
+    lastBarcodeRef.current = result.data;
     setScanned(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     saveToInventory(result.data);
   };
 
   const resetScanner = () => {
     isLockedRef.current = false;
+    lastBarcodeRef.current = null;
     setScanned(false);
     setLastResult(null);
     setShowManual(false);
     setManualQuery("");
     setPendingBarcode(null);
+    setScanStatus("idle");
     startScanAnim();
   };
 
@@ -215,10 +327,13 @@ export default function ScannerScreen() {
 
       {/* Camera */}
       <CameraView
+        ref={cameraRef}
         style={StyleSheet.absoluteFillObject}
         facing="back"
         onBarcodeScanned={
-          scanned || isSaving ? undefined : handleBarcodeScanned
+          mode === "barcode" && !scanned && !isSaving
+            ? handleBarcodeScanned
+            : undefined
         }
         barcodeScannerSettings={{ barcodeTypes: ["ean13", "upc_a"] }}
       />
@@ -237,8 +352,8 @@ export default function ScannerScreen() {
             <View style={[styles.corner, styles.tr]} />
             <View style={[styles.corner, styles.bl]} />
             <View style={[styles.corner, styles.br]} />
-            {/* Animated scan line */}
-            {!scanned && !isSaving && (
+            {/* Animated scan line — barcode mode only */}
+            {mode === "barcode" && !scanned && !isSaving && (
               <Animated.View
                 style={[
                   styles.scanLine,
@@ -259,21 +374,73 @@ export default function ScannerScreen() {
         <View style={styles.logoBadge}>
           <Text style={styles.logoBadgeText}>▦</Text>
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.topTitle}>GameVault Scanner</Text>
-          <Text style={styles.topSub}>Apunta al código de barras</Text>
+          <Text style={styles.topSub}>
+            {mode === "barcode"
+              ? "Apunta al código de barras"
+              : "Apunta a la carátula"}
+          </Text>
+        </View>
+        <View style={styles.modeToggle}>
+          <TouchableOpacity
+            onPress={() => switchMode("barcode")}
+            disabled={isSaving}
+            style={[
+              styles.modeBtn,
+              mode === "barcode" && styles.modeBtnActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.modeBtnText,
+                mode === "barcode" && styles.modeBtnTextActive,
+              ]}
+            >
+              EAN
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => switchMode("cover")}
+            disabled={isSaving}
+            style={[
+              styles.modeBtn,
+              mode === "cover" && styles.modeBtnActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.modeBtnText,
+                mode === "cover" && styles.modeBtnTextActive,
+              ]}
+            >
+              OCR
+            </Text>
+          </TouchableOpacity>
         </View>
       </BlurView>
 
       {/* Frame label */}
       <View style={styles.frameLabelWrap}>
-        <View style={styles.frameLabel}>
+        <View
+          style={[
+            styles.frameLabel,
+            scanStatus === "found" && styles.frameLabelSuccess,
+            scanStatus === "not_found" && styles.frameLabelError,
+          ]}
+        >
           <Text style={styles.frameLabelText}>
             {isSaving
               ? "⬡  Identificando…"
-              : scanned
-                ? "✓  Código capturado"
-                : "▦  Esperando código"}
+              : scanStatus === "found"
+                ? "✓  ¡Juego encontrado!"
+                : scanStatus === "not_found"
+                  ? "✗  No identificado — búsqueda manual"
+                  : scanned
+                    ? "✓  Código capturado"
+                    : mode === "barcode"
+                      ? "▦  Esperando código"
+                      : "◫  Encuadra la carátula"}
           </Text>
         </View>
       </View>
@@ -300,7 +467,9 @@ export default function ScannerScreen() {
             <View style={{ marginLeft: 14 }}>
               <Text style={styles.processingTitle}>Identificando activo…</Text>
               <Text style={styles.processingSubtitle}>
-                Consultando IGDB &amp; Global UPC
+                {mode === "barcode"
+                  ? "Consultando IGDB & Global UPC"
+                  : "Procesando OCR & consultando IGDB"}
               </Text>
             </View>
           </View>
@@ -338,6 +507,23 @@ export default function ScannerScreen() {
           <TouchableOpacity style={styles.btnPrimary} onPress={resetScanner}>
             <Text style={styles.btnPrimaryText}>Escanear otro juego</Text>
           </TouchableOpacity>
+        ) : mode === "cover" ? (
+          <>
+            <TouchableOpacity
+              style={styles.btnPrimary}
+              onPress={captureCover}
+            >
+              <Text style={styles.btnPrimaryText}>📸  Capturar carátula</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowManual(true)}
+              style={styles.manualLink}
+            >
+              <Text style={styles.manualLinkText}>
+                Búsqueda manual por nombre ó ID IGDB
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <>
             <View style={styles.readyRow}>
@@ -358,7 +544,11 @@ export default function ScannerScreen() {
         )}
 
         {/* Bottom tip */}
-        <Text style={styles.tipText}>Compatible con EAN-13 y UPC-A</Text>
+        <Text style={styles.tipText}>
+          {mode === "barcode"
+            ? "Compatible con EAN-13 y UPC-A"
+            : "OCR · enfoca el título de la carátula"}
+        </Text>
       </View>
     </View>
   );
@@ -486,6 +676,14 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     paddingHorizontal: 16,
     paddingVertical: 6,
+  },
+  frameLabelSuccess: {
+    backgroundColor: "rgba(16,185,129,0.25)",
+    borderColor: GV_EMERALD,
+  },
+  frameLabelError: {
+    backgroundColor: "rgba(239,68,68,0.15)",
+    borderColor: "rgba(239,68,68,0.5)",
   },
   frameLabelText: { color: GV_EMERALD, fontSize: 12, fontWeight: "700" },
 
@@ -619,6 +817,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 32,
   },
+
+  /* Mode toggle */
+  modeToggle: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 99,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  modeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 99,
+    minWidth: 44,
+    alignItems: "center",
+  },
+  modeBtnActive: { backgroundColor: GV_EMERALD },
+  modeBtnText: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+  },
+  modeBtnTextActive: { color: "#fff" },
 
   /* Manual search */
   manualBox: {

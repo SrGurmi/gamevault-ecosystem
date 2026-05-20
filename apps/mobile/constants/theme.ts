@@ -15,10 +15,13 @@ export const statusColors: Record<string, string> = {
   maintenance: GV_RED,
 };
 
-export const coverUrl = (url?: string) =>
-  url
-    ? `https:${url.replace(/t_\w+/, 't_720p')}`
-    : 'https://placehold.co/100x140/0c1628/10b981?text=?';
+export const coverUrl = (url?: string) => {
+  if (!url) return 'https://placehold.co/100x140/0c1628/10b981?text=?';
+  const sized = url.replace(/t_\w+/, 't_720p');
+  if (sized.startsWith('http://') || sized.startsWith('https://')) return sized;
+  if (sized.startsWith('//')) return `https:${sized}`;
+  return sized;
+};
 
 export const timeAgo = (date: string) => {
   const diff = Date.now() - new Date(date).getTime();
