@@ -15,33 +15,44 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const notificationListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | null>(null);
+  // SDK 53: subscription object has its own .remove() method
+  const notificationListener = useRef<{ remove: () => void } | null>(null);
 
   useEffect(() => {
-    const setupNotifications = async () => {
+    const setupNotificationsForUser = async (userId: string) => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
         const token = await registerForPushNotificationsAsync();
         if (token) {
-          await saveDeviceToken(user.id, token);
+          await saveDeviceToken(userId, token);
         }
 
-        notificationListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-          console.log('Notification response:', response);
-        });
+        // Only add listener once
+        if (!notificationListener.current) {
+          notificationListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+            console.log('Notification response:', response);
+          });
+        }
       } catch (err) {
         console.error('Notification setup error:', err);
       }
     };
 
-    setupNotifications();
+    // Setup on mount if already logged in
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setupNotificationsForUser(user.id);
+    });
+
+    // Re-setup whenever auth state changes (login)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        setupNotificationsForUser(session.user.id);
+      }
+    });
 
     return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
+      subscription.unsubscribe();
+      // Use .remove() on the subscription — works in both Expo Go and dev builds
+      notificationListener.current?.remove();
     };
   }, []);
 

@@ -70,3 +70,11 @@ supabase/snippets/
 
 # ─── Supabase config backup ──────────────────────────────────────
 supabase/config.toml.bak
+.aider*
+
+# ─── Archivos internos de herramientas AI ────────────────────────
+.claude/
+
+# ─── Documentos y scripts de prueba locales ──────────────────────
+guia-presentacion.docx
+test-gemini-cover.js

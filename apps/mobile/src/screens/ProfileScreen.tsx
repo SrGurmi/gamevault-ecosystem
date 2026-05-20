@@ -125,6 +125,7 @@ export default function ProfileScreen({ onNavigateToAccount }: ProfileScreenProp
           <View style={styles.profileGlow} />
           <View style={styles.avatarWrap}>
             <Image
+              key={profile?.avatar_url}
               source={{ uri: profile?.avatar_url || 'https://placehold.co/120/0c1628/10b981?text=?' }}
               style={styles.avatar}
             />

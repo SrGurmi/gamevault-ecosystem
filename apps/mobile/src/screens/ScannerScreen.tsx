@@ -11,6 +11,7 @@ import {
   Animated,
   TextInput,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import {
   CameraView,
   useCameraPermissions,
@@ -39,7 +40,11 @@ export default function ScannerScreen() {
   const [manualQuery, setManualQuery] = useState("");
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
   const [mode, setMode] = useState<ScanMode>("barcode");
+  // scanStatus: extra label shown inside the frame
+  const [scanStatus, setScanStatus] = useState<"idle" | "found" | "not_found">("idle");
   const isLockedRef = useRef(false);
+  // Track the last barcode tried so we don't re-fire on the same barcode immediately
+  const lastBarcodeRef = useRef<string | null>(null);
   const cameraRef = useRef<CameraView | null>(null);
   const scanAnim = useRef(new Animated.Value(0)).current;
 
@@ -145,6 +150,7 @@ export default function ScannerScreen() {
 
   const saveToInventory = async (barcode: string) => {
     setIsSaving(true);
+    setScanStatus("idle");
     try {
       const { data: gameData, error: funcError } =
         await supabase.functions.invoke("get-game-details", {
@@ -153,7 +159,9 @@ export default function ScannerScreen() {
 
       if (funcError) throw new Error(`Error de conexión: ${funcError.message}`);
       if (!gameData || gameData.error) {
-        // Offer manual fallback instead of hard error
+        // Game not found → offer manual fallback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setScanStatus("not_found");
         setPendingBarcode(barcode);
         setShowManual(true);
         setScanned(false);
@@ -162,8 +170,12 @@ export default function ScannerScreen() {
       }
 
       const title = await persistGame(gameData, barcode);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setScanStatus("found");
       setLastResult({ title, barcode });
     } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setScanStatus("not_found");
       Alert.alert("Aviso", err.message || "Error al procesar el código.");
       isLockedRef.current = false;
       setScanned(false);
@@ -282,18 +294,25 @@ export default function ScannerScreen() {
 
   const handleBarcodeScanned = (result: BarcodeScanningResult) => {
     if (isLockedRef.current) return;
+    // Debounce: ignore if it's the exact same barcode as the last failed attempt
+    // within the same scan session (user must explicitly reset or try a different barcode)
+    if (lastBarcodeRef.current === result.data && scanStatus === "not_found") return;
     isLockedRef.current = true;
+    lastBarcodeRef.current = result.data;
     setScanned(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     saveToInventory(result.data);
   };
 
   const resetScanner = () => {
     isLockedRef.current = false;
+    lastBarcodeRef.current = null;
     setScanned(false);
     setLastResult(null);
     setShowManual(false);
     setManualQuery("");
     setPendingBarcode(null);
+    setScanStatus("idle");
     startScanAnim();
   };
 
@@ -403,15 +422,25 @@ export default function ScannerScreen() {
 
       {/* Frame label */}
       <View style={styles.frameLabelWrap}>
-        <View style={styles.frameLabel}>
+        <View
+          style={[
+            styles.frameLabel,
+            scanStatus === "found" && styles.frameLabelSuccess,
+            scanStatus === "not_found" && styles.frameLabelError,
+          ]}
+        >
           <Text style={styles.frameLabelText}>
             {isSaving
               ? "⬡  Identificando…"
-              : scanned
-                ? "✓  Código capturado"
-                : mode === "barcode"
-                  ? "▦  Esperando código"
-                  : "◫  Encuadra la carátula"}
+              : scanStatus === "found"
+                ? "✓  ¡Juego encontrado!"
+                : scanStatus === "not_found"
+                  ? "✗  No identificado — búsqueda manual"
+                  : scanned
+                    ? "✓  Código capturado"
+                    : mode === "barcode"
+                      ? "▦  Esperando código"
+                      : "◫  Encuadra la carátula"}
           </Text>
         </View>
       </View>
@@ -647,6 +676,14 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     paddingHorizontal: 16,
     paddingVertical: 6,
+  },
+  frameLabelSuccess: {
+    backgroundColor: "rgba(16,185,129,0.25)",
+    borderColor: GV_EMERALD,
+  },
+  frameLabelError: {
+    backgroundColor: "rgba(239,68,68,0.15)",
+    borderColor: "rgba(239,68,68,0.5)",
   },
   frameLabelText: { color: GV_EMERALD, fontSize: 12, fontWeight: "700" },
 
